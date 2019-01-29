@@ -1,0 +1,277 @@
+---
+title: "Projet en statisques descriptives"
+author: "Paul Charnay & Sophia Yazzourh"
+date: "1 mars 2018"
+output: html_document
+---
+
+
+# Introduction
+
+
+Durant ce projet nous allons réaliser une description des données issues de *pomme.txt*. 
+
+Nous importons les données et les librairies relatives au projet. 
+```{r setup}
+library(corrplot)
+library(FactoMineR)
+pomme = read.table("pomme.txt", header = TRUE)
+```
+
+Affichons les données :
+```{r print}
+head(pomme)
+```
+
+```{r attr}
+attributes(pomme)$names
+```
+
+On observe que sur les 19 attributs : 
+
+- il y en a 3 qualitatifs nominaux : *juge*, *type* et *essai*. 
+
+- les 16 autres sont quantitatifs continus. 
+
+Il n'est pas intéressant de mener des études sur les variables qualitatives car elles ne sont là que pour poser le cadre du sujet et servent de support à l'étude des quantitatives. 
+
+En étudiant certaines variables quantitatives pour chaque pomme, on pourra les caractériser. 
+
+
+
+# I) Caractérisation des variétés de pommes
+
+## 1) Etude d'une variable 
+
+En réalisant le barplot des variances des indicateurs, nous remarquons que la variable *farineuse* a la plus grande variance. Nous choisissons de l'étudier plus en détails.
+
+
+```{r barplot_var}
+pomme_quantit = pomme[, - c(1:3)]
+barplot(diag(var(pomme_quantit)))
+
+```
+
+```{r farineuse}
+
+fari = pomme_quantit$fari
+summary(fari)
+boxplot(fari)
+adj1 = min(fari[fari >= quantile(fari)[2]-1.5*IQR(fari)]) ; adj1
+adj2 = max(fari[fari <= quantile(fari)[4]+1.5*IQR(fari)]) ; adj2
+
+```
+
+Nous voyons donc que les notes des juges pour la variable *farineuse* sont comprises entre 0 et 9.8. Les valeurs adjacentes sont identiques au minimum et au maximum, nous n'avons donc pas d'outlier pour cette variable. C'est parce que le premier et le troisième quartiles sont éloignés l'un de l'autre donc l'écart inter quartiles est grand et ainsi la valeur adjacente inférieure est basse et la valeur adjacente supérieure est haute.
+La médiane est de 2.75, ce qui signifie qu'il y a autant de notes au-dessus de 2.75 que de notes en-dessous pour la variable *farineuse*.
+La moyenne est supérieure à la médiane et vaut 3.678. 
+
+## 2) Recherche de corrélations entre les variables
+
+```{r correlations}
+
+C = cor(pomme_quantit)
+corrplot(C, method='ellipse', title = "Corrélations entre les variables")
+
+```
+
+Nous réalisons la matrice des corrélations afin de voir si certaines variables sont liées à d'autres. Nous avons choisi de ne présenter que la matrice globale et non pas les trois matrices par variété de pomme car aucune tendance claire ne s'en dégageait.
+
+Nous pouvons constater que la variable *farineuse* est corrélée négativement avec les variables *croquante* et *juteuse*, et positivement avec la variable *rugueuse*. Cela signifie qu'une pomme farineuse aura tendance à être rugueuse mais peu croquante et juteuse, ce qui est cohérent avec la réalité. Les variables *fondante* et *croquante* sont négativement corrélées, ce qui est à nouveau cohérent avec la réalité.
+Les autres variables sont assez faiblement corrélées entre elles.
+
+
+## 3) Etude comparative
+
+On va réaliser une analyse comparative par variable pour chaque pomme par rapport à la moyenne globale de la variable en question.
+Nous réalisons pour cela un histogramme de la moyenne par variable auquel nous superposons les moyennes des mêmes variables par variété de pomme. Nous avons choisi cette représentation car elle permet de superposer les données de chaque variété pour les comparer entre elles.
+Les cercles rouges correspondent aux pommes Jonagored, les bleus aux Granny et les verts aux pommes Canada, la moyenne globale est représentée par le bâton gris. Le graphique a été séparé en deux parties par souci de lisibilité.
+
+
+```{r global}
+
+jon = pomme[pomme$type == "JON",]
+gra = pomme[pomme$type == "GRA",]
+can = pomme[pomme$type == "CAN",]
+
+abs = barplot(colMeans(pomme[, c(4:11)]), ylim = c(0,10))
+points(x = abs, y = colMeans(jon[, c(4:11)]), col = "red", pch = 21, bg = "red")
+points(x = abs, y = colMeans(gra[, c(4:11)]), col = "blue", pch = 21, bg = "blue")
+points(x = abs, y = colMeans(can[, c(4:11)]), col = "green", pch = 21, bg = "green")
+barplot(colMeans(pomme[, c(12:19)]), ylim = c(0,10))
+points(x = abs, y = colMeans(jon[, c(12:19)]), col = "red", pch = 21, bg = "red")
+points(x = abs, y = colMeans(gra[, c(12:19)]), col = "blue", pch = 21, bg = "blue")
+points(x = abs, y = colMeans(can[, c(12:19)]), col = "green", pch = 21, bg = "green")
+
+
+```
+
+On observe qu'aucune odeur caractéristique ne se dégage particulièrement d'aucune variété de pomme, avec des moyennes inférieures à 2. On peut donc dire qu'aucun de ces trois indicateurs ne permettra de différencier une variété d'une autre.
+
+En revanche, on peut dire que la pomme Granny (bleu) est plus résistante au toucher, plus croquante, plus acide et plus dure à mastiquer que les autres pommes.
+Ces quatre variables la caractérisent.
+
+Pour ce qui est de la pomme Canada (vert), les tendances qui se dégagent sont qu'elle est plus rugueuse que les autres, ne sent pas du tout la feuille fraîche, elle est aussi très farineuse et bien moins juteuse que les deux autres.
+
+Enfin, la pomme Jonagored (rouge) est peu astringente et peu acide mais c'est la pomme la plus odorante. Aucune autre caractéristique particulière ne ressort par rapport aux deux autres variétés.
+
+
+## 4) Caractérisation des variétés de pommes par ACP
+
+L'objectif de l'ACP est d'exhiber un petit nombre de métavariables permettant de rendre compte de la dispersion des données d'intérêt.
+Le but de cette étude est de confirmer les résultats de la partie précédente et de voir si d'autres tendances se dégagent.
+
+Pour cette ACP l'individu de référence sera l'individu moyen. 
+Nous avons choisi de donner un poids égal à chaque juge et à chaque essai, cependant il serait aussi possible pour améliorer les résultats de donner un poids supérieur à l'avis des juges qui se trompent peu souvent et un poids moindre à ceux qui se trompent beaucoup ou ne sont pas cohérents entre leurs deux essais.
+
+Dans cette partie, afin d'avoir plus de lisibilité, nous avons réduit le nombre de points par deux en calculant la moyenne entre les deux essais de chaque juge pour chaque pomme.  
+
+```{r acp}
+jon = pomme[pomme$type == "JON",]
+gra = pomme[pomme$type == "GRA",]
+can = pomme[pomme$type == "CAN",]
+
+moyenne_essais = pomme[pomme$essai == "1er",]  # On veut garder la structure de moyenne_essais en remplaçant les premiers essais par les moyennes des deux essais
+moyenne_essais = moyenne_essais[, -3] ; # La colonne essai n'est donc plus utile
+canACP = (can[1:13,-c(1:3)] + can[14:26,-c(1:3)]) / 2
+jonACP = (jon[1:13,-c(1:3)] + jon[14:26,-c(1:3)]) / 2 
+graACP = (gra[1:13,-c(1:3)] + gra[14:26,-c(1:3)]) / 2 
+moyenne_essais[1:13, 3:18] = canACP
+moyenne_essais[14:26, 3:18] = graACP
+moyenne_essais[27:39, 3:18] = jonACP
+rownames(moyenne_essais) = 1:39
+res.acp <- PCA(moyenne_essais[,-1], scale.unit=T, graph=F, quali.sup = 1)
+plot(res.acp, axes = c(1,2), choix="var")
+```
+
+On observe que le premier axe, qui explique 35.28% de la variance globale, représente la résistance au toucher et les caractéristiques croquant et juteux. Le deuxième axe, qui explique 17.29% de la variance globale, s'approche plutôt de l'odeur globale et du caractère fondant. Cependant, les variables qui portent la plus grande partie de la variance ne sont pas alignées sur les axes, elles sont à équidistance des deux dimensions ce qui empêche de les placer clairement dans une des deux métadonnées.
+
+```{r plot acp}
+
+plotellipses(res.acp, level = 0.95)
+```
+
+On observe trois groupes de points distincts qui représentent chacun une variété de pomme. Les ellipses représentent la zone du graphique dans laquelle la vraie valeur pour chaque variété a 95% de chances de se situer d'après les données analysées. On peut donc ainsi caractériser facilement chaque pomme en reprenant le graphique précédent.
+Nous retrouvons les tendances suivantes : 
+
+- la pomme Granny se trouve dans le cadran inférieur gauche, ce qui correspond à croquante, résistante, dure à mastiquer et acide. A contrario elle ne serait pas sucrée ni fondante. 
+
+- la pomme Canada se trouve dans le cadran inférieur droit, ce qui implique qu'elle serait flétrie, rugueuse et farineuse. Au contraire, elle serait peu juteuse et odorante. 
+
+- la pomme Jonagored se trouve au milieu des deux cadrans supérieurs. Donc dans un entre deux, ce qui montre qu'aucune tendance générale ne se dégage. Cependant on peut dire qu'elle est quand même assez odorante et fondante mais peu acide et astringente. 
+
+On retrouve bien par ACP les mêmes résultats que précédemment. 
+
+On veut à présent savoir si notre ACP est de bonne qualité ou si beaucoup d'information a été perdue lors de la projection sur les deux premiers plans factoriels. 
+
+```{r qualit_acp}
+barplot(cumsum(res.acp$eig[,2]))
+```
+
+On voit sur l'histogramme ci-dessus que les deux premières composantes principales représentent un peu plus de 50% de l'inertie globale, l'ACP est donc de qualité correcte sans être très bonne.
+
+
+En conclusion, notre ACP ne nous permet pas de regrouper nos variables en deux tendances distinctes à cause de l'équidistance de certaines variable aux deux dimensions. Sa précision souffre aussi de la dispersion de l'inertie sur plus de deux composantes principales. Cependant, elle montre à nouveau les caractéristiques des pommes décrites précédemment. 
+De plus, si on a une pomme inconnue, on peut grâce à sa position dans l'ACP déterminer à quelle variété elle appartient (si elle se superpose avec l'un des trois groupes de points) ou sinon déterminer ses caractéristiques. 
+
+# II) Etude des juges
+
+On souhaite étudier le panel de juges afin de déterminer si l'échantillon est répétable. D'abord on étudiera la cohérence des juges entre leur deux essais, puis nous chercherons si certains des juges s'éloignent de la tendance générale. 
+
+## 1) Cohérence entre le premier et le deuxième essai 
+
+
+Nous redécoupons notre étude sur trois histogrammes représentant l'écart des avis pour chaque juge pour chaque pomme, puis nous étudions l'écart moyen. 
+
+```{r repetessais}
+jon = pomme[pomme$type == "JON",]
+jon = jon[, - c(1:3)]
+gra = pomme[pomme$type == "GRA",]
+gra = gra[, - c(1:3)] 
+can = pomme[pomme$type == "CAN",]
+can = can[, - c(1:3)] 
+canrep = abs(can[1:13,] - can[14:26,])
+jonrep = abs(jon[1:13,] - jon[14:26,])
+grarep = abs(gra[1:13,] - gra[14:26,])
+moy = (grarep + jonrep + canrep) / 3
+rownames(jonrep) = c('a','b', 'c', 'd','e','f','g','h','i','j','k','l','m')
+rownames(canrep) = c('a','b', 'c', 'd','e','f','g','h','i','j','k','l','m')
+rownames(grarep) = c('a','b', 'c', 'd','e','f','g','h','i','j','k','l','m')
+rownames(moy) = c('a','b', 'c', 'd','e','f','g','h','i','j','k','l','m')
+barplot(rowMeans(canrep), main = "Ecart entre les deux avis pour la pomme Canada")
+barplot(rowMeans(jonrep), main = "Ecart entre les deux avis pour la pomme Jonagored")
+barplot(rowMeans(grarep), main = "Ecart entre les deux avis pour la pomme Granny")
+barplot(rowMeans(moy), main = "Ecart moyen entre les deux avis")
+
+```
+
+
+
+
+Pour la pomme Canada, on observe que les juges *c* et *k* changent très peu d'avis alors que les juges *d* et *f* ont leurs deux avis qui diffèrent fortement.
+
+Pour la pomme Jonagored, on observe que les juges *a* et *e* changent très peu d'avis alors que les juges *f* et *j* ont leurs deux avis qui diffèrent fortement.
+
+Pour la pomme Granny, on observe que les juges *j*  et *h* changent très peu d'avis alors que les juges *g* et *i* ont leurs deux avis qui diffèrent fortement.
+
+```{r ecart_moyen}
+
+mean(rowMeans(moy))
+rowMeans(moy["f",])
+```
+
+Cependant, en moyenne, on se rend compte que tous les juges changent à peu près autant d'avis avec une moyenne d'écart de point de 1.13, ce qui est faible, à l'exception de f qui est d'humeur changeante avec un écart moyen de 1.63 points.
+
+
+
+## 2) Ecart à la tendance générale
+
+On souhaite dans cette partie voir si certains juges s'éloignent fortement de l'avis général. Pour cela, nous commençons par réaliser un boxplot de chaque variable pour identifier la présence d'outliers. Puis, lorsqu'ils existent, nous cherchons à identifier de quel juge ils proviennent. Nous séparons à nouveau le boxplot en deux pour plus de lisibilité.
+
+
+```{r juges}
+
+boxplot(pomme_quantit[,1:8])
+boxplot(pomme_quantit[,9:16])
+```
+
+On observe la présence d'outliers sur quatre des seize variables. Trois d'entre elles sont liées à l'odeur, on peut donc supposer que l'odorat des juges est peu fiable ou trop variable. Il est aussi possible que les trois variétés proposées soient tellement peu odorantes que les juges ont du mal à attribuer une note à ces indicateurs. En même temps, on peut remarquer que puisque les variables en question sont toutes proches de zéro et tassées, la médiane est quasiment confondue avec le premier quartile et le troisième quartile est faible aussi, ce qui favorise la présence d'outliers supérieurs.
+
+Nous allons à présent identifier les juges à l'origine de ces outliers.
+
+
+```{r outliers}
+ter = pomme$o_ter
+adj_sup_o_ter = max(ter[ter <= (quantile(ter)[4]+1.5*IQR(ter))])
+cav = pomme$o_cav
+adj_sup_o_cav = max(cav[cav <= (quantile(cav)[4]+1.5*IQR(cav))])
+ff = pomme$o_ff
+adj_sup_o_ff = max(ff[ff <= (quantile(ff)[4]+1.5*IQR(ff))])
+flet= pomme$flet
+adj_sup_o_flet = max(flet[flet <= (quantile(flet)[4]+1.5*IQR(flet))])
+
+out_ter = summary(pomme[which(ter > adj_sup_o_ter),1])
+out_cav = summary(pomme[which(cav > adj_sup_o_cav),1])
+out_ff = summary(pomme[which(ff > adj_sup_o_ff),1])
+out_flet = summary(pomme[which(flet> adj_sup_o_flet),1])
+
+out_tot = out_ter + out_cav + out_ff + out_flet
+
+pie(out_tot, col = rainbow(13))
+
+```
+
+Sur ce coloré camembert, nous voyons que les avis dissonants proviennent, pour plus du quart, du même juge : le *b*.
+Les juges *m* et *l* sont aussi plus loin de l'avis géréral que les autres mais notons toutefois que la plupart des juges ne crée pas plus de deux outliers. De plus, ces remarques ne concernent seulement qu'un quart des variables. De manière générale sur l'ensemble des variables, il apparaît une tendance dont aucun juge ne s'éloigne vraiment.
+
+En conclusion, le panel de juges semble rationnel, cependant le juge *b* est parmi ceux dont l'avis change le plus entre ses deux essais et est aussi celui qui s'éloigne le plus souvent de l'avis du reste du jury.
+Pour le cas du juge *f*, on observe qu'il est celui qui change le plus fortement d'avis entre ses deux essais, mais il reste cependant presque toujours dans la tendance globale.
+
+
+
+# Conclusion
+
+
+En comparant les moyennes pour chaque variable des trois différentes variétés puis en réalisant une ACP, nous avons pu dégager les caractéristiques de chacune des variétés. Ainsi, la pomme Granny est croquante,  résistante au toucher, dure à mastiquer, acide et peu sucrée. La pomme Canada est flétrie, rugueuse et farineuse alors que la Jonagored est plus odorante que les autres mais peu acide et astringente.
+
+En ce qui concerne la répétabilité du panel de juges, nous avons étudié pour chaque juge la cohérence entre ses deux avis ainsi que le nombre de fois où il donne une note qui s'écarte fortement de l'avis du reste du jury. Nous en concluons que ces juges sont cohérents avec environ un point d'écart entre leurs deux avis en moyenne. Enfin, les juges donnent assez peu d'avis très éloignés de ceux du reste du groupe, à l'exception du juge *b* qui se trompe plus fréquemment que les autres.
